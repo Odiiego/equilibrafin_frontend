@@ -1,0 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Ultra&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-ultra: 'Ultra', serif;
+
+  --color-forest-950: #083b2a;
+  --color-forest-900: #0e4f3a;
+  --color-forest-800: #166a4f;
+  --color-forest-700: #1f825f;
+  --color-forest-600: #2da17a;
+  --color-forest-500: #4fc39b;
+  --color-forest-400: #7fd9b8;
+  --color-forest-300: #aee9c7;
+  --color-forest-200: #c9f3d7;
+  --color-forest-100: #dcf3e0;
+}
+.bg-home {
+  background-image: url('/src/assets/img.svg');
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: auto 100vh;
+}
