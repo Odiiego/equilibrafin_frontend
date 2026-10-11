@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from 'react';
@@ -10,11 +11,14 @@ import {
   type ItemLista,
   type Lancamento,
   type Lista,
+  type Objetivo,
+  type ObjetivosLista,
 } from '../utils/listas';
 
 type ListasContextValue = {
   listas: Lista[];
-  adicionarLista: (nome: string) => void;
+  adicionarLista: (nome: string, objetivos?: ObjetivosLista) => void;
+  definirObjetivos: (listaId: number, objetivos: ObjetivosLista) => void;
   excluirLista: (listaId: number) => void;
   adicionarItem: (listaId: number, item: ItemLista) => void;
   atualizarLancamento: (
@@ -25,18 +29,69 @@ type ListasContextValue = {
   removerItem: (listaId: number, itemId: number) => void;
 };
 
-const ListasContext = createContext<ListasContextValue | null>(null);
+const CHAVE_ARMAZENAMENTO = 'equilibrafin:listas:v1';
 
-export function ListasProvider({ children }: { children: ReactNode }) {
-  const [listas, setListas] = useState<Lista[]>([
+/** Formato antigo: um único `objetivo` por lista. */
+type ListaLegada = Lista & { objetivo?: Objetivo };
+
+function migrar(lista: ListaLegada): Lista {
+  const { objetivo, ...resto } = lista;
+
+  if (!objetivo) return resto;
+
+  return objetivo.tipo === 'limite'
+    ? { ...resto, limite: resto.limite ?? objetivo }
+    : { ...resto, meta: resto.meta ?? objetivo };
+}
+
+function carregarListas(): Lista[] {
+  try {
+    const salvo = localStorage.getItem(CHAVE_ARMAZENAMENTO);
+
+    if (salvo) {
+      const dados: unknown = JSON.parse(salvo);
+      if (Array.isArray(dados)) return (dados as ListaLegada[]).map(migrar);
+    }
+  } catch {
+    // Armazenamento indisponível ou corrompido: começa do mock.
+  }
+
+  return [
     {
       ...dadosFinanceiros.lista,
       itens: dadosFinanceiros.lancamentos as Lancamento[],
     },
-  ]);
+  ];
+}
 
-  const adicionarLista = (nome: string) =>
-    setListas((atuais) => [...atuais, { id: Date.now(), nome, itens: [] }]);
+const ListasContext = createContext<ListasContextValue | null>(null);
+
+export function ListasProvider({ children }: { children: ReactNode }) {
+  const [listas, setListas] = useState<Lista[]>(carregarListas);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify(listas));
+    } catch {
+      // Sem armazenamento: os dados ficam só em memória.
+    }
+  }, [listas]);
+
+  const adicionarLista = (nome: string, objetivos: ObjetivosLista = {}) =>
+    setListas((atuais) => [
+      ...atuais,
+      { id: Date.now(), nome, itens: [], ...objetivos },
+    ]);
+
+  // Substitui limite e meta: o que não vier em `objetivos` é removido.
+  const definirObjetivos = (listaId: number, objetivos: ObjetivosLista) =>
+    setListas((atuais) =>
+      atuais.map((lista) =>
+        lista.id === listaId
+          ? { ...lista, limite: objetivos.limite, meta: objetivos.meta }
+          : lista,
+      ),
+    );
 
   // Ao excluir uma lista, remove também as entradas que apontavam para ela.
   const excluirLista = (listaId: number) =>
@@ -94,6 +149,7 @@ export function ListasProvider({ children }: { children: ReactNode }) {
       value={{
         listas,
         adicionarLista,
+        definirObjetivos,
         excluirLista,
         adicionarItem,
         atualizarLancamento,

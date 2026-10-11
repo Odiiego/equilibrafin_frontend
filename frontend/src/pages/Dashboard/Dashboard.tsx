@@ -1,13 +1,24 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Target } from 'lucide-react';
 import { useListas } from '../../contexts/ListasContext';
-import { calcularSaldo } from '../../utils/listas';
+import ObjetivosFormulario from '../../components/ObjetivosFormulario';
+import { BadgeRitmo, BarraRitmo } from '../../components/IndicadoresRitmo';
+import { calcularSaldo, type ObjetivosLista } from '../../utils/listas';
+import {
+  ROTULO_PERIODO,
+  calcularRitmos,
+  nomeObjetivo,
+  rascunhosVazios,
+  validarRascunhos,
+} from '../../utils/objetivos';
 
 export default function Dashboard() {
   const [nomeLista, setNomeLista] = useState('');
   const { listas, adicionarLista } = useListas();
   const [mostrarSaldo, setMostrarSaldo] = useState(false);
+  const [comObjetivo, setComObjetivo] = useState(false);
+  const [rascunhos, setRascunhos] = useState(rascunhosVazios());
 
   const formatarMoeda = (valor: number) =>
     valor.toLocaleString('pt-BR', {
@@ -26,7 +37,22 @@ export default function Dashboard() {
       return;
     }
 
-    adicionarLista(nome);
+    let objetivos: ObjetivosLista | undefined;
+
+    if (comObjetivo) {
+      const resultado = validarRascunhos(rascunhos);
+
+      if ('erro' in resultado) {
+        setErro(resultado.erro);
+        return;
+      }
+
+      objetivos = resultado.objetivos;
+    }
+
+    adicionarLista(nome, objetivos);
+    setComObjetivo(false);
+    setRascunhos(rascunhosVazios());
 
     setNomeLista('');
     setErro('');
@@ -116,6 +142,30 @@ export default function Dashboard() {
               </button>
             </div>
 
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setComObjetivo((aberto) => !aberto)}
+                aria-expanded={comObjetivo}
+                className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-forest-800 hover:text-forest-950"
+              >
+                <Target size={16} aria-hidden="true" />
+                {comObjetivo
+                  ? 'Remover limite ou meta'
+                  : 'Adicionar limite ou meta (opcional)'}
+              </button>
+
+              {comObjetivo && (
+                <div className="mt-4 rounded-xl border border-forest-200 bg-forest-100/40 p-4">
+                  <ObjetivosFormulario
+                    valor={rascunhos}
+                    onChange={setRascunhos}
+                    idPrefix="nova-lista"
+                  />
+                </div>
+              )}
+            </div>
+
             {erro && (
               <p className="mt-2 text-sm text-red-600" role="alert">
                 {erro}
@@ -147,47 +197,78 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {listas.map((lista) => (
-                <Link
-                  key={lista.id}
-                  to={`/dashboard/listas/${lista.id}`}
-                  className="block rounded-2xl border border-forest-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-                >
-                  <h2 className="font-semibold text-forest-950">
-                    {lista.nome}
-                  </h2>
+              {listas.map((lista) => {
+                const ritmos = [
+                  ...Object.values(calcularRitmos(lista, listas)),
+                ].filter((ritmo) => ritmo !== null);
 
-                  <div className="mt-5 border-t border-forest-100 pt-4">
-                    <p className="text-sm text-gray-500">Saldo atual</p>
+                return (
+                  <Link
+                    key={lista.id}
+                    to={`/dashboard/listas/${lista.id}`}
+                    className="block rounded-2xl border border-forest-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                  >
+                    <h2 className="font-semibold text-forest-950">
+                      {lista.nome}
+                    </h2>
 
-                    <div className="mt-1 flex items-center justify-between gap-3">
-                      <p className="text-xl font-bold text-forest-950">
-                        {mostrarSaldo ? formatarMoeda(calcularSaldo(lista.id, listas)) : '••••••'}
-                      </p>
+                    <div className="mt-5 border-t border-forest-100 pt-4">
+                      <p className="text-sm text-gray-500">Saldo atual</p>
 
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setMostrarSaldo((visivel) => !visivel);
-                        }}
-                        aria-label={
-                          mostrarSaldo ? 'Ocultar saldo' : 'Mostrar saldo'
-                        }
-                        aria-pressed={mostrarSaldo}
-                        className="rounded-lg p-2 text-forest-700 transition hover:bg-forest-100"
-                      >
-                        {mostrarSaldo ? (
-                          <EyeOff size={20} />
-                        ) : (
-                          <Eye size={20} />
-                        )}
-                      </button>
+                      <div className="mt-1 flex items-center justify-between gap-3">
+                        <p className="text-xl font-bold text-forest-950">
+                          {mostrarSaldo
+                            ? formatarMoeda(calcularSaldo(lista.id, listas))
+                            : '••••••'}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setMostrarSaldo((visivel) => !visivel);
+                          }}
+                          aria-label={
+                            mostrarSaldo ? 'Ocultar saldo' : 'Mostrar saldo'
+                          }
+                          aria-pressed={mostrarSaldo}
+                          className="rounded-lg p-2 text-forest-700 transition hover:bg-forest-100"
+                        >
+                          {mostrarSaldo ? (
+                            <EyeOff size={20} />
+                          ) : (
+                            <Eye size={20} />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                    {ritmos.map((ritmo) => (
+                      <div
+                        key={ritmo.objetivo.tipo}
+                        className="mt-4 border-t border-forest-100 pt-4"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="text-gray-500">
+                            {nomeObjetivo(ritmo.objetivo)} ·{' '}
+                            {ROTULO_PERIODO[
+                              ritmo.objetivo.periodo
+                            ].toLowerCase()}
+                          </span>
+                          <BadgeRitmo ritmo={ritmo} />
+                        </div>
+
+                        <BarraRitmo ritmo={ritmo} className="mt-3" />
+
+                        <p className="mt-2 text-xs text-gray-500">
+                          {formatarMoeda(ritmo.realizado)} de{' '}
+                          {formatarMoeda(ritmo.objetivo.valor)}
+                        </p>
+                      </div>
+                    ))}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </section>

@@ -20,11 +20,38 @@ export type ReferenciaLista = {
 
 export type ItemLista = Lancamento | ReferenciaLista;
 
+export type PeriodoTipo = 'semanal' | 'mensal' | 'anual' | 'customizado';
+
+/**
+ * Limite: quanto se espera gastar, no máximo, no período (só indica, não bloqueia).
+ * Meta: quanto se espera guardar (receitas − despesas) no período.
+ */
+export type Objetivo = {
+  tipo: 'limite' | 'meta';
+  valor: number;
+  periodo: PeriodoTipo;
+  inicio?: string; // YYYY-MM-DD, só no período customizado
+  fim?: string; // YYYY-MM-DD, só no período customizado
+  /**
+   * Só para metas. 'ganhos': conta apenas receitas. 'saldo': receitas − despesas.
+   * Metas antigas, sem este campo, continuam valendo como 'saldo'.
+   */
+  base?: 'ganhos' | 'saldo';
+};
+
+/** Cada lista pode ter um limite de gastos e uma meta, cada um com seu período. */
+export type ObjetivosLista = {
+  limite?: Objetivo;
+  meta?: Objetivo;
+};
+
 export type Lista = {
   id: number;
   nome: string;
   ano?: number;
   itens: ItemLista[];
+  limite?: Objetivo;
+  meta?: Objetivo;
 };
 
 export type ItemResolvido = {
