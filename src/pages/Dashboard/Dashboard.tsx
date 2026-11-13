@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Target } from 'lucide-react';
+import CabecalhoApp from '../../components/CabecalhoApp';
+import { mensagemDeErro } from '../../services/api';
 import { useListas } from '../../contexts/ListasContext';
 import ObjetivosFormulario from '../../components/ObjetivosFormulario';
 import { BadgeRitmo, BarraRitmo } from '../../components/IndicadoresRitmo';
@@ -15,7 +17,9 @@ import {
 
 export default function Dashboard() {
   const [nomeLista, setNomeLista] = useState('');
-  const { listas, adicionarLista } = useListas();
+  const { listas, adicionarLista, carregando, erroCarga, recarregar } =
+    useListas();
+  const [salvando, setSalvando] = useState(false);
   const [mostrarSaldo, setMostrarSaldo] = useState(false);
   const [comObjetivo, setComObjetivo] = useState(false);
   const [rascunhos, setRascunhos] = useState(rascunhosVazios());
@@ -27,7 +31,7 @@ export default function Dashboard() {
     });
   const [erro, setErro] = useState('');
 
-  function criarLista(event: React.FormEvent<HTMLFormElement>) {
+  async function criarLista(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const nome = nomeLista.trim();
@@ -50,48 +54,25 @@ export default function Dashboard() {
       objetivos = resultado.objetivos;
     }
 
-    adicionarLista(nome, objetivos);
-    setComObjetivo(false);
-    setRascunhos(rascunhosVazios());
+    setSalvando(true);
 
-    setNomeLista('');
-    setErro('');
+    try {
+      await adicionarLista(nome, objetivos);
+      setComObjetivo(false);
+      setRascunhos(rascunhosVazios());
+      setNomeLista('');
+      setErro('');
+    } catch (falha) {
+      setErro(mensagemDeErro(falha));
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
     <div className="min-h-screen bg-forest-100">
       {/* Cabeçalho */}
-      <header className="flex items-center justify-between px-6 py-5 md:px-12">
-        <Link
-          to="/"
-          className="flex justify-center font-ultra text-3xl text-forest-950"
-        >
-          <span className="relative z-10">Equilibra</span>
-          <span className="relative z-0 -ml-2 top-2 text-forest-700">Fin</span>
-        </Link>
-
-        <button
-          type="button"
-          aria-label="Perfil do usuário"
-          className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-forest-100 text-forest-900 transition hover:bg-forest-200"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="8" r="4" />
-            <path d="M5 21a7 7 0 0 1 14 0" />
-          </svg>
-        </button>
-      </header>
+      <CabecalhoApp />
 
       <main className="mx-auto max-w-5xl px-6 py-10 md:px-12 md:py-14">
         {/* Título */}
@@ -136,7 +117,8 @@ export default function Dashboard() {
 
               <button
                 type="submit"
-                className="cursor-pointer rounded-xl bg-[#FBFE34] px-6 py-3 font-bold text-forest-950 shadow-sm transition duration-200 hover:scale-[1.02] hover:bg-[#E8EB20] active:scale-95"
+                disabled={salvando}
+                className="cursor-pointer rounded-xl bg-[#FBFE34] px-6 py-3 font-bold text-forest-950 shadow-sm transition duration-200 hover:scale-[1.02] hover:bg-[#E8EB20] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 + Criar lista
               </button>
@@ -184,7 +166,25 @@ export default function Dashboard() {
             </span>
           </div>
 
-          {listas.length === 0 ? (
+          {carregando ? (
+            <p className="text-sm text-forest-800" role="status">
+              Carregando suas listas...
+            </p>
+          ) : erroCarga && listas.length === 0 ? (
+            <div
+              className="rounded-2xl border border-red-200 bg-red-50 px-6 py-8 text-center"
+              role="alert"
+            >
+              <p className="font-semibold text-red-700">{erroCarga}</p>
+              <button
+                type="button"
+                onClick={recarregar}
+                className="mt-4 cursor-pointer rounded-xl bg-white px-5 py-2 text-sm font-semibold text-forest-950 shadow-sm hover:bg-forest-100"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : listas.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-forest-300 px-6 py-12 text-center">
               <p className="text-lg font-semibold text-forest-900">
                 Sua organização começa aqui!

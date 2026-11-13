@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { mensagemDeErro } from '../../services/api';
 
 type CadastroFormData = {
   nome: string;
@@ -10,7 +12,8 @@ type CadastroFormData = {
 };
 
 export default function Cadastro() {
-  const [mensagem, setMensagem] = useState('');
+  const [erroApi, setErroApi] = useState('');
+  const { autenticado, cadastrar } = useAuth();
 
   const {
     register,
@@ -19,17 +22,25 @@ export default function Cadastro() {
     formState: { errors, isSubmitting },
   } = useForm<CadastroFormData>();
 
-  const onSubmit: SubmitHandler<CadastroFormData> = (data) => {
-    setMensagem('');
+  const onSubmit: SubmitHandler<CadastroFormData> = async (data) => {
+    setErroApi('');
 
-    // Aqui você conectará o cadastro ao serviço de autenticação.
-    setMensagem(`Formulário validado para ${data.nome}!`);
+    try {
+      // A conta já nasce autenticada; o redirecionamento acontece abaixo.
+      await cadastrar(data.nome, data.email, data.senha);
+    } catch (erro) {
+      setErroApi(mensagemDeErro(erro));
+    }
   };
 
   const senha = useWatch({
     control,
     name: 'senha',
   });
+
+  if (autenticado) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-forest-100 flex items-center justify-center px-6 py-12">
@@ -209,9 +220,9 @@ export default function Cadastro() {
             Criar minha conta →
           </button>
 
-          {mensagem && (
-            <p className="text-center text-sm text-forest-800" role="status">
-              {mensagem}
+          {erroApi && (
+            <p className="text-center text-sm text-red-600" role="alert">
+              {erroApi}
             </p>
           )}
         </form>

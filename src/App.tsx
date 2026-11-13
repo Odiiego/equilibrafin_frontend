@@ -1,23 +1,28 @@
-import { Routes, Route } from 'react-router-dom';
-import Home from './pages/Home/Home';
-import Login from './pages/Login/Login';
+import { Route, Routes } from 'react-router-dom';
+import RotaProtegida from './components/RotaProtegida';
 import Cadastro from './pages/Cadastro/Cadastro';
 import Dashboard from './pages/Dashboard/Dashboard';
+import Home from './pages/Home/Home';
 import ListaDetalhe from './pages/ListaDetalhe/ListaDetalhe';
-import { ListasProvider } from './contexts/ListasContext';
+import Login from './pages/Login/Login';
+import Tutorial from './pages/Tutorial/Tutorial';
+import Tutoriais from './pages/Tutoriais/Tutoriais';
 
 export default function App() {
   return (
-    <ListasProvider>
-      <Routes>
-        <Route path="*" element={<Home />} />
-        <Route path="/" element={<Home />} />
-        <Route path="/dash" element={<Dashboard />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/cadastro" element={<Cadastro />} />
-        <Route path="/dashboard/" element={<Dashboard />} />
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/cadastro" element={<Cadastro />} />
+
+      {/* Páginas institucionais (públicas) */}
+      <Route path="/tutoriais" element={<Tutoriais />} />
+      <Route path="/tutoriais/:slug" element={<Tutorial />} />
+
+      <Route element={<RotaProtegida />}>
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/dashboard/listas/:id" element={<ListaDetalhe />} />
-      </Routes>
-    </ListasProvider>
+      </Route>
+    </Routes>
   );
 }

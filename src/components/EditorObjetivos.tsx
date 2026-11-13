@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useListas } from '../contexts/ListasContext';
+import { mensagemDeErro } from '../services/api';
 import type { Lista } from '../utils/listas';
 import { rascunhosDe, validarRascunhos } from '../utils/objetivos';
 import ObjetivosFormulario from './ObjetivosFormulario';
@@ -13,8 +14,9 @@ export default function EditorObjetivos({ lista, onFechar }: Props) {
   const { definirObjetivos } = useListas();
   const [rascunhos, setRascunhos] = useState(() => rascunhosDe(lista));
   const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
 
-  function salvar() {
+  async function salvar() {
     const resultado = validarRascunhos(rascunhos);
 
     if ('erro' in resultado) {
@@ -22,8 +24,16 @@ export default function EditorObjetivos({ lista, onFechar }: Props) {
       return;
     }
 
-    definirObjetivos(lista.id, resultado.objetivos);
-    onFechar();
+    setSalvando(true);
+
+    try {
+      await definirObjetivos(lista.id, resultado.objetivos);
+      onFechar();
+    } catch (falha) {
+      setErro(mensagemDeErro(falha));
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -60,7 +70,8 @@ export default function EditorObjetivos({ lista, onFechar }: Props) {
         <button
           type="button"
           onClick={salvar}
-          className="cursor-pointer rounded-xl bg-[#FBFE34] px-6 py-3 font-semibold text-forest-950 shadow transition hover:bg-[#E8EB20]"
+          disabled={salvando}
+          className="cursor-pointer rounded-xl disabled:cursor-not-allowed disabled:opacity-60 bg-[#FBFE34] px-6 py-3 font-semibold text-forest-950 shadow transition hover:bg-[#E8EB20]"
         >
           Salvar
         </button>

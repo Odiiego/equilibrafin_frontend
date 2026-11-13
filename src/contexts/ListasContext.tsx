@@ -1,159 +1,111 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
   type ReactNode,
 } from 'react';
-import dadosFinanceiros from '../mocks/lancamentos';
-import {
-  ehReferencia,
-  type ItemLista,
-  type Lancamento,
-  type Lista,
-  type Objetivo,
-  type ObjetivosLista,
-} from '../utils/listas';
+import { api, mensagemDeErro } from '../services/api';
+import type { NovoLancamento } from '../services/mapeamentos';
+import type { Lista, ObjetivosLista } from '../utils/listas';
 
 type ListasContextValue = {
   listas: Lista[];
-  adicionarLista: (nome: string, objetivos?: ObjetivosLista) => void;
-  definirObjetivos: (listaId: number, objetivos: ObjetivosLista) => void;
-  excluirLista: (listaId: number) => void;
-  adicionarItem: (listaId: number, item: ItemLista) => void;
-  atualizarLancamento: (
+  carregando: boolean;
+  erroCarga: string;
+  recarregar: () => Promise<void>;
+  adicionarLista: (nome: string, objetivos?: ObjetivosLista) => Promise<void>;
+  excluirLista: (listaId: number) => Promise<void>;
+  definirObjetivos: (
     listaId: number,
-    itemId: number,
-    dados: Omit<Lancamento, 'id'>,
-  ) => void;
-  removerItem: (listaId: number, itemId: number) => void;
+    objetivos: ObjetivosLista,
+  ) => Promise<void>;
+  criarLancamento: (listaId: number, dados: NovoLancamento) => Promise<void>;
+  criarEntradaDeLista: (
+    listaId: number,
+    outraListaId: number,
+    data: string,
+    observacao: string,
+  ) => Promise<void>;
+  atualizarLancamento: (
+    entradaId: number,
+    dados: NovoLancamento,
+  ) => Promise<void>;
+  excluirEntrada: (entradaId: number) => Promise<void>;
 };
-
-const CHAVE_ARMAZENAMENTO = 'equilibrafin:listas:v1';
-
-/** Formato antigo: um único `objetivo` por lista. */
-type ListaLegada = Lista & { objetivo?: Objetivo };
-
-function migrar(lista: ListaLegada): Lista {
-  const { objetivo, ...resto } = lista;
-
-  if (!objetivo) return resto;
-
-  return objetivo.tipo === 'limite'
-    ? { ...resto, limite: resto.limite ?? objetivo }
-    : { ...resto, meta: resto.meta ?? objetivo };
-}
-
-function carregarListas(): Lista[] {
-  try {
-    const salvo = localStorage.getItem(CHAVE_ARMAZENAMENTO);
-
-    if (salvo) {
-      const dados: unknown = JSON.parse(salvo);
-      if (Array.isArray(dados)) return (dados as ListaLegada[]).map(migrar);
-    }
-  } catch {
-    // Armazenamento indisponível ou corrompido: começa do mock.
-  }
-
-  return [
-    {
-      ...dadosFinanceiros.lista,
-      itens: dadosFinanceiros.lancamentos as Lancamento[],
-    },
-  ];
-}
 
 const ListasContext = createContext<ListasContextValue | null>(null);
 
+/**
+ * As listas vivem no servidor. Depois de cada alteração o conjunto é
+ * recarregado: o saldo de uma lista depende das listas aninhadas nela, e o
+ * servidor é quem valida (por exemplo, ciclos entre listas).
+ * Cada ação lança um erro com mensagem pronta para exibir se falhar.
+ */
 export function ListasProvider({ children }: { children: ReactNode }) {
-  const [listas, setListas] = useState<Lista[]>(carregarListas);
+  const [listas, setListas] = useState<Lista[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarga, setErroCarga] = useState('');
+
+  const recarregar = useCallback(async () => {
+    try {
+      setListas(await api.listarListas());
+      setErroCarga('');
+    } catch (erro) {
+      setErroCarga(mensagemDeErro(erro));
+    }
+  }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify(listas));
-    } catch {
-      // Sem armazenamento: os dados ficam só em memória.
-    }
-  }, [listas]);
+    let ativo = true;
 
-  const adicionarLista = (nome: string, objetivos: ObjetivosLista = {}) =>
-    setListas((atuais) => [
-      ...atuais,
-      { id: Date.now(), nome, itens: [], ...objetivos },
-    ]);
+    api
+      .listarListas()
+      .then((dados) => {
+        if (!ativo) return;
+        setListas(dados);
+        setErroCarga('');
+      })
+      .catch((erro: unknown) => {
+        if (ativo) setErroCarga(mensagemDeErro(erro));
+      })
+      .finally(() => {
+        if (ativo) setCarregando(false);
+      });
 
-  // Substitui limite e meta: o que não vier em `objetivos` é removido.
-  const definirObjetivos = (listaId: number, objetivos: ObjetivosLista) =>
-    setListas((atuais) =>
-      atuais.map((lista) =>
-        lista.id === listaId
-          ? { ...lista, limite: objetivos.limite, meta: objetivos.meta }
-          : lista,
-      ),
-    );
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
-  // Ao excluir uma lista, remove também as entradas que apontavam para ela.
-  const excluirLista = (listaId: number) =>
-    setListas((atuais) =>
-      atuais
-        .filter((lista) => lista.id !== listaId)
-        .map((lista) => ({
-          ...lista,
-          itens: lista.itens.filter(
-            (item) => !(ehReferencia(item) && item.listaId === listaId),
-          ),
-        })),
-    );
-
-  const adicionarItem = (listaId: number, item: ItemLista) =>
-    setListas((atuais) =>
-      atuais.map((lista) =>
-        lista.id === listaId
-          ? { ...lista, itens: [...lista.itens, item] }
-          : lista,
-      ),
-    );
-
-  const atualizarLancamento = (
-    listaId: number,
-    itemId: number,
-    dados: Omit<Lancamento, 'id'>,
-  ) =>
-    setListas((atuais) =>
-      atuais.map((lista) =>
-        lista.id === listaId
-          ? {
-              ...lista,
-              itens: lista.itens.map((item) =>
-                item.id === itemId && !ehReferencia(item)
-                  ? { ...item, ...dados }
-                  : item,
-              ),
-            }
-          : lista,
-      ),
-    );
-
-  const removerItem = (listaId: number, itemId: number) =>
-    setListas((atuais) =>
-      atuais.map((lista) =>
-        lista.id === listaId
-          ? { ...lista, itens: lista.itens.filter((i) => i.id !== itemId) }
-          : lista,
-      ),
-    );
+  const executar = async (acao: () => Promise<void>) => {
+    await acao();
+    await recarregar();
+  };
 
   return (
     <ListasContext.Provider
       value={{
         listas,
-        adicionarLista,
-        definirObjetivos,
-        excluirLista,
-        adicionarItem,
-        atualizarLancamento,
-        removerItem,
+        carregando,
+        erroCarga,
+        recarregar,
+        adicionarLista: (nome, objetivos = {}) =>
+          executar(() => api.criarLista(nome, objetivos)),
+        excluirLista: (listaId) => executar(() => api.excluirLista(listaId)),
+        definirObjetivos: (listaId, objetivos) =>
+          executar(() => api.definirObjetivos(listaId, objetivos)),
+        criarLancamento: (listaId, dados) =>
+          executar(() => api.criarLancamento(listaId, dados)),
+        criarEntradaDeLista: (listaId, outraListaId, data, observacao) =>
+          executar(() =>
+            api.criarEntradaDeLista(listaId, outraListaId, data, observacao),
+          ),
+        atualizarLancamento: (entradaId, dados) =>
+          executar(() => api.atualizarLancamento(entradaId, dados)),
+        excluirEntrada: (entradaId) =>
+          executar(() => api.excluirEntrada(entradaId)),
       }}
     >
       {children}

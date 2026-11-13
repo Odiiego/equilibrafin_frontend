@@ -15,12 +15,6 @@ export default function Home() {
           Equilíbrio para suas finanças.
         </h2>
 
-        <Link className="flex flex-col items-center" to="/dash">
-          <button className="cursor-pointer rounded-xl px-8 py-4 font-bold text-forest-950">
-            SÓ_TRISTEZA
-          </button>
-        </Link>
-
         <div className="mt-25 flex flex-col items-center">
           <Link to="/cadastro">
             <button className="cursor-pointer rounded-xl bg-[#FBFE34] px-8 py-4 text-lg font-bold text-forest-950 shadow-md transition duration-200 hover:scale-103 hover:bg-[#E8EB20] active:scale-95">
@@ -35,6 +29,15 @@ export default function Home() {
               className="font-semibold underline underline-offset-4 hover:text-forest-600"
             >
               Entre na sua conta
+            </Link>
+          </p>
+
+          <p className="mt-3 text-sm text-forest-800 text-center">
+            <Link
+              to="/tutoriais"
+              className="font-semibold underline underline-offset-4 hover:text-forest-600"
+            >
+              Aprenda a usar a plataforma →
             </Link>
           </p>
         </div>

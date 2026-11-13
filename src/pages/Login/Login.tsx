@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { mensagemDeErro } from '../../services/api';
+
+// Conta de demonstração: o botão só aparece se as duas variáveis existirem.
+const EMAIL_DEMO = import.meta.env.VITE_DEMO_EMAIL;
+const SENHA_DEMO = import.meta.env.VITE_DEMO_SENHA;
 
 type LoginFormData = {
   email: string;
@@ -8,7 +14,9 @@ type LoginFormData = {
 };
 
 export default function Login() {
-  const [mensagem, setMensagem] = useState('');
+  const [erroApi, setErroApi] = useState('');
+  const [entrandoDemo, setEntrandoDemo] = useState(false);
+  const { autenticado, entrar } = useAuth();
 
   const {
     register,
@@ -16,9 +24,35 @@ export default function Login() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>();
 
-  const onSubmit: SubmitHandler<LoginFormData> = (data) => {
-    setMensagem(`Formulário validado para ${data.email}!`);
+  const onSubmit: SubmitHandler<LoginFormData> = async (data) => {
+    setErroApi('');
+
+    try {
+      // Ao entrar, o redirecionamento para o dashboard acontece abaixo.
+      await entrar(data.email, data.senha);
+    } catch (erro) {
+      setErroApi(mensagemDeErro(erro));
+    }
   };
+
+  async function entrarComDemonstracao() {
+    if (!EMAIL_DEMO || !SENHA_DEMO) return;
+
+    setErroApi('');
+    setEntrandoDemo(true);
+
+    try {
+      await entrar(EMAIL_DEMO, SENHA_DEMO);
+    } catch (erro) {
+      setErroApi(mensagemDeErro(erro));
+    } finally {
+      setEntrandoDemo(false);
+    }
+  }
+
+  if (autenticado) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-forest-100 flex items-center justify-center px-6 py-12">
@@ -135,12 +169,42 @@ export default function Login() {
             Entrar →
           </button>
 
-          {mensagem && (
-            <p className="text-center text-sm text-forest-800" role="status">
-              {mensagem}
+          {erroApi && (
+            <p className="text-center text-sm text-red-600" role="alert">
+              {erroApi}
             </p>
           )}
         </form>
+
+        {/* Conta de demonstração */}
+        {EMAIL_DEMO && SENHA_DEMO && (
+          <div className="mt-8 border-t border-forest-100 pt-6 text-center">
+            <p className="text-sm text-forest-800">
+              Quer conhecer antes de criar sua conta?
+            </p>
+
+            <button
+              type="button"
+              onClick={entrarComDemonstracao}
+              disabled={entrandoDemo}
+              className="mt-3 w-full cursor-pointer rounded-xl border border-forest-300 bg-white px-6 py-3 font-semibold text-forest-900 transition hover:bg-forest-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Explorar a conta de demonstração
+            </button>
+
+            <p className="mt-2 text-xs text-gray-500">
+              Dados fictícios da Marina, uma designer que organiza as finanças.
+              Conheça a história nos{' '}
+              <Link
+                to="/tutoriais/conta-de-demonstracao"
+                className="underline underline-offset-4 hover:text-forest-950"
+              >
+                tutoriais
+              </Link>
+              .
+            </p>
+          </div>
+        )}
 
         {/* Cadastro */}
         <p className="mt-8 text-center text-sm text-forest-800">
